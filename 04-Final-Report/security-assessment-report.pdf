@@ -1,1 +1,312 @@
-this is the final report for all the 5 challanges.
+# CodeVerse CyberQuest: Comprehensive Technical Security Assessment Report
+
+## 1. Title Page Information
+
+| Document Attribute | Details |
+| :--- | :--- |
+| **Report Title** | CodeVerse CyberQuest: Junior Cybersecurity Analyst Capstone Security Assessment Report |
+| **Author / Analyst** | Cyberflex (Junior Cybersecurity Analyst) |
+| **Date** | November 5, 2026 |
+| **Target Environments** | **SkillBit** (Web Security), **CryptoHack** (Cryptography), and **pwn.college** (Linux Security) |
+| **Assessment Scope** | 5 Practical Security Challenges Across Web Exploitation, Cryptanalysis, and Linux Access Control |
+| **Version** | `v1.0` — Final Capstone Deliverable |
+
+> **Warning & Authorization Notice:** All security testing, vulnerability exploitation, cryptanalysis, and Linux system exercises documented in this report were conducted strictly within authorized educational lab environments (**SkillBit**, **CryptoHack**, and **pwn.college**).
+
+---
+
+## 2. Executive Summary
+
+This technical security assessment report documents the findings, evidence, and remediation recommendations from the **CodeVerse CyberQuest: Junior Cybersecurity Analyst Challenge**. The assessment evaluated five practical security challenges spanning three core cybersecurity domains: **Web Application Security**, **Applied Cryptography**, and **Linux System Security**.
+
+### Key Assessment Highlights
+1. **Web Application Security (`SkillBit`):** Testing of the **ICMP Industries Smart Home Protect System** login portal revealed a critical **SQL Injection (`SQLi`)** vulnerability in the authentication workflow, compounded by verbose SQL query reflection and plaintext password storage. An unauthenticated attacker can bypass login authentication entirely using a boolean tautology payload (`' OR '1'='1' --`) and dump all user records and credentials from the backend database.
+2. **Cryptography (`CryptoHack`):** Three cryptographic assessments demonstrated the critical distinction between **encoding** (`ASCII` and `Hexadecimal`) and **encryption** (`XOR`), and proved how weak key management breaks confidentiality:
+   - **ASCII Encoding:** Confirmed that unkeyed encoding schemes (`[99, 114, 121, ...]`) provide zero confidentiality and can be trivially reversed.
+   - **Repeating-Key XOR:** Demonstrated a **known-plaintext attack** where knowing the 7-byte flag header (`crypto{`) exposed the 8-byte secret key (`myXORkey`) and decrypted the entire ciphertext.
+   - **Visual RGB Key Reuse (`Lemur XOR`):** Demonstrated a **Two-Time Pad** attack where encrypting two PNG images (`lemur.png` and `flag.png`) with the same secret key allowed the key stream to be canceled out via pixel-level RGB XOR ($C_1 \oplus C_2 = I_{\text{lemur}} \oplus I_{\text{flag}}$).
+3. **Linux System Security (`pwn.college`):** Command-line and access-control exercises in the **Linux Luminarium** dojo validated user identity verification (`whoami`, `id`), filesystem navigation, and Discretionary Access Control (`DAC`) hardening around `chmod` permission modes (`rwx`) and privileged **Set Owner User ID (`SUID`)** binaries.
+
+### Summary of Assessed Challenges & Risk Ratings
+
+| ID | Domain & Platform | Challenge Name | Vulnerability / Concept | Severity / Risk | Status |
+| :--- | :--- | :--- | :--- | :---: | :---: |
+| **CQ-01** | Web Security (`SkillBit`) | *Seriously Questionable Coding* | Authentication Bypass via SQL Injection (`SQLi`), Plaintext Passwords & Query Reflection | **Critical** | Completed |
+| **CQ-02** | Cryptography (`CryptoHack`) | *ASCII* | Cleartext Data Representation via 7-Bit ASCII Encoding | **Informational** | Completed |
+| **CQ-03** | Cryptography (`CryptoHack`) | *You either know, XOR you don't* | Known-Plaintext Key Recovery on Short Repeating-Key XOR Cipher | **High** | Completed |
+| **CQ-04** | Cryptography (`CryptoHack`) | *Lemur XOR* | Stream Cipher / One-Time Pad Key Reuse on RGB Image Data | **High** | Completed |
+| **CQ-05** | Linux Security (`pwn.college`) | *Intro to Commands* & *Comprehending Permissions* | Command Execution Context (`PATH`) & Insecure File/SUID Permissions (`chmod`) | **Medium–High** | Completed (`Intro`) / Assigned (`Permissions`) |
+
+---
+
+## 3. Introduction
+
+The **CodeVerse CyberQuest: Junior Cybersecurity Analyst Challenge** is a hands-on capstone assessment designed to bridge foundational cybersecurity theory and practical defensive/offensive security analysis. Modern enterprise environments face threats across multiple layers simultaneously: web-facing authentication portals, cryptographic data protection implementations, and underlying Linux server permissions.
+
+The objective of this report is to consolidate the technical methodology, verified laboratory evidence, impact analysis, and prioritized engineering remediations across all five CyberQuest challenges into a formal security assessment deliverable.
+
+---
+
+## 4. Scope
+
+### Authorized In-Scope Targets
+The assessment was strictly scoped to the following five challenge environments across three authorized platforms:
+
+| Platform | Module / Category | Target Challenge / System | Documentation Reference |
+| :--- | :--- | :--- | :--- |
+| **SkillBit** | Web Exploitation — Authentication Bypass | **Challenge 1:** *Seriously Questionable Coding* (ICMP Industries Smart Home Protect System) | [`../01-web-security/vulnerability-1.md`](../01-web-security/vulnerability-1.md) |
+| **CryptoHack** | Introduction to CryptoHack — Encoding | **Challenge 2:** *ASCII* (`5 pts`) | [`../02-Cryptography/encoding.md`](../02-Cryptography/encoding.md) |
+| **CryptoHack** | Introduction to CryptoHack — Symmetric XOR | **Challenge 3:** *You either know, XOR you don't* (`30 pts`) | [`../02-Cryptography/encoding.md`](../02-Cryptography/encoding.md) |
+| **CryptoHack** | Introduction to CryptoHack — Symmetric XOR | **Challenge 4:** *Lemur XOR* (`40 pts` — `lemur.png` & `flag.png`) | [`../02-Cryptography/xor.md`](../02-Cryptography/xor.md) |
+| **pwn.college** | Linux Luminarium — `hello` & `permissions` | **Challenge 5:** *Intro to Commands* (`hello`) & *Comprehending Permissions* (`/flag`, `chmod`, `SUID`) | [`../03-Linux-Security/linux-commands.md`](../03-Linux-Security/linux-commands.md)<br>[`../03-Linux-Security/permissions.md`](../03-Linux-Security/permissions.md) |
+
+### Out-of-Scope Boundaries
+- Any external production websites, third-party infrastructure, or systems outside the designated **SkillBit**, **CryptoHack**, and **pwn.college** challenge instances.
+- Denial-of-Service (`DoS`) testing or automated brute-force attacks against platform infrastructure.
+
+---
+
+## 5. Methodology
+
+The assessment followed a structured, four-phase analytical methodology tailored to each technical domain:
+
+1. **Reconnaissance & Environment Enumeration:**
+   - Inspected HTTP response headers and HTML source code using browser Developer Tools (`F12`) to fingerprint backend web server technologies (`Apache/2.4.69 (Debian)`, `Caddy`, `PHP/8.5.12`).
+   - Inspected cryptographic challenge formats (decimal integer arrays, hexadecimal byte strings, and PNG image dimensions/color channels).
+   - Enumerated Linux container user contexts (`whoami`, `id`), working directories (`ls`, `cd`), and file mode bits (`ls -l`).
+2. **Vulnerability & Cryptographic Analysis:**
+   - Probed web input handling with test credentials (`admin` / `Admin@12345`) to observe how backend SQL queries were constructed.
+   - Analyzed mathematical properties of **Exclusive OR (`XOR`, $\oplus$)**—specifically self-inversion ($A \oplus A = 0$), commutativity, and associativity—to identify known-plaintext and key-reuse weaknesses.
+   - Analyzed Linux Discretionary Access Control (`DAC`) ownership (`root` vs. `hacker`) and permission bits (`rwx` and `SUID`).
+3. **Exploitation & Technical Verification:**
+   - Executed a boolean tautology SQL injection payload (`' OR '1'='1' --`) to bypass authentication and extract database records.
+   - Developed custom Python 3 scripts (`decod.py` and `solve.py` using `Pillow`) inside an Ubuntu WSL environment to automate decoding, key recovery, and pixel-level RGB XOR decryption.
+   - Executed Linux shell utilities to retrieve challenge flags.
+4. **Remediation & Control Formulation:**
+   - Mapped each verified weakness to industry-standard defensive controls (OWASP, NIST) to prevent recurrence.
+
+---
+
+## 6. Findings
+
+### Finding CQ-01: Authentication Bypass & Database Dump via SQL Injection (`SQLi`)
+- **Platform & Target:** SkillBit — *Seriously Questionable Coding* (ICMP Industries Smart Home Protect System)
+- **Severity:** **Critical**
+- **Vulnerability Category:** Injection (`OWASP A03:2021`) / Identification and Authentication Failures (`OWASP A07:2021`)
+- **Technical Description:**  
+  The ICMP Industries login portal authenticates users by concatenating untrusted form inputs (`Username` and `Password`) directly into a backend SQL `SELECT` statement without input sanitization or parameterized queries:
+  ```sql
+  SELECT * FROM users WHERE email='<username_input>' AND pwd='<password_input>';
+  ```
+  Furthermore, the application reflects the raw SQL query directly onto the webpage after submission (`Your query was: ...`) and stores user passwords in cleartext inside the `pwd` column.
+- **Proof of Exploitation:**  
+  Supplying the payload `' OR '1'='1' --` into the `Username` field closed the `email` string literal early, injected a boolean condition (`'1'='1'`) that always evaluates to `TRUE`, and commented out (`--`) the remainder of the query (including the password check). This bypassed **authentication** (verifying user identity) and dumped all three user records from the `users` table.
+
+---
+
+### Finding CQ-02: Cleartext Data Representation via 7-Bit ASCII Integer Encoding
+- **Platform & Target:** CryptoHack — *ASCII* (`5 pts`)
+- **Severity:** **Informational (Foundational Concept)**
+- **Category:** Cryptographic Fundamentals — Encoding vs. Encryption
+- **Technical Description:**  
+  The challenge provided an array of 23 decimal integers (`[99, 114, 121, 112, 116, 111, 123, ...]`) representing 7-bit ASCII ordinal values (`0–127`). Because **encoding** transforms data using a publicly known mapping without a secret key, it provides no confidentiality. Converting each integer via Python's `chr()` function immediately recovered the plaintext string.
+
+---
+
+### Finding CQ-03: Known-Plaintext Key Recovery Against Short Repeating-Key XOR Cipher
+- **Platform & Target:** CryptoHack — *You either know, XOR you don't* (`30 pts`)
+- **Severity:** **High**
+- **Category:** Cryptographic Weakness — Key Recovery via Known-Plaintext Attack (`KPA`)
+- **Technical Description:**  
+  A 42-byte flag was encrypted using a repeating-key XOR cipher and encoded in hexadecimal (`0e0b213f26041e480b...`). Because XOR is self-inverse ($C \oplus P = K$) and the plaintext was known to start with the standard 7-byte header `crypto{` and end with `}`, XORing the first 7 ciphertext bytes (`0e0b213f26041e`) with `crypto{` directly revealed `myXORke`. Completing the 8th byte revealed the full repeating secret key: `myXORkey`.
+- **Proof of Exploitation:**  
+  Using the recovered key `myXORkey` in the Python script `decod.py` decrypted the entire hexadecimal ciphertext into the plaintext flag.
+
+---
+
+### Finding CQ-04: Cryptographic Key Reuse (Two-Time Pad) on Visual RGB Image Streams
+- **Platform & Target:** CryptoHack — *Lemur XOR* (`40 pts` — `lemur.png` and `flag.png`)
+- **Severity:** **High**
+- **Category:** Cryptographic Implementation Flaw — Key Stream Reuse (Two-Time Pad)
+- **Technical Description:**  
+  Two PNG images (`lemur.png` and `flag.png`, both `582 x 327` pixels) were encrypted by XORing their uncompressed RGB pixel bytes with the **exact same secret key stream** $K$:
+  $$C_1 = I_{\text{lemur}} \oplus K, \quad C_2 = I_{\text{flag}} \oplus K$$
+  Individually, both encrypted images appeared as uniform visual noise. However, reusing the key stream $K$ across two plaintexts allowed the secret key to be eliminated completely by XORing the RGB byte values of the two encrypted images together:
+  $$C_1 \oplus C_2 = (I_{\text{lemur}} \oplus K) \oplus (I_{\text{flag}} \oplus K) = I_{\text{lemur}} \oplus I_{\text{flag}}$$
+- **Proof of Exploitation:**  
+  Executing `solve.py` using Python's `Pillow` (`PIL`) library XORed the `(R, G, B)` tuples of each pixel coordinate and saved `recovered.png`, visually revealing the photograph of the lemur overlaid with the plaintext flag.
+
+---
+
+### Finding CQ-05: Linux Command Execution Context & Access Control (`chmod` / `SUID`) Risks
+- **Platform & Target:** pwn.college — *Linux Luminarium* (`Intro to Commands` & `Comprehending Permissions`)
+- **Severity:** **Medium–High**
+- **Category:** Host Security — Discretionary Access Control (`DAC`) & Privilege Escalation
+- **Technical Description:**  
+  In Linux environments, security relies on strict separation between **authentication** (identifying the active user account via `whoami` and `id`, such as `hacker`) and **authorization** (enforcing file read `r`, write `w`, and execute `x` permissions across Owner `u`, Group `g`, and Others `o`).
+  - In **Intro to Commands**, invoking commands via the shell demonstrated how user identity (`whoami` $\rightarrow$ `hacker`) and `PATH` lookup govern binary execution (`hello`).
+  - In **Comprehending Permissions**, misconfigured ownership (allowing an unprivileged user to `chmod u+r /flag`) or misconfigured **Set Owner User ID (`SUID`, `chmod u+s`)** bits on system binaries owned by `root` allow an unprivileged local user (`hacker`) to escalate effective privileges and read restricted root-owned files (`/flag`).
+
+---
+
+## 7. Evidence
+
+### 7.1 Challenge CQ-01 Evidence (SkillBit — SQL Injection)
+
+#### Captured HTTP Response Headers
+```http
+server: Apache/2.4.69 (Debian)
+via: 1.1 Caddy
+x-powered-by: PHP/8.5.12
+```
+
+#### Executed SQL Injection Payload & Dumped Database Output
+- **Injected Username Payload:** `' OR '1'='1' --`
+- **Resulting Backend SQL Query & Output:**
+  ```text
+  Your Database Data:
+  Your query was: SELECT * FROM users WHERE email='' OR '1'='1' --' AND pwd='';
+  id	first	nick	last	email	greeting	pwd
+  1	Jon		Holloway	jon@icmpindustries.com	Hi John "The Master" Holloway	great_super_password
+  2	Maria		Whitehouse	maria@icmpindustries.com	Ave, ave, ave, Maria	sups_sups_secure
+  3	Joe		Jones	joe@icmpindustries.com	MetaCTF{hello_you_sweet_sql_injection_flag}	long_password_supa_weak
+  ```
+
+![SQL Injection Payload Entered on ICMP Industries Login Page](../01-web-security/screenshots/Screenshot%202026-11-03%20101112.png)
+
+![Full Database Dump and Captured Flag on SkillBit](../01-web-security/screenshots/Screenshot%202026-11-03%20101122.png)
+
+---
+
+### 7.2 Challenge CQ-02 & CQ-03 Evidence (CryptoHack — Encoding & Known-Plaintext XOR)
+
+#### Challenge CQ-02 (`ASCII`) Verification
+- **Input Array:** `[99, 114, 121, 112, 116, 111, 123, 65, 83, 67, 73, 73, 95, 112, 114, 49, 110, 116, 52, 98, 108, 51, 125]`
+- **Decoded Output:** `crypto{ASCII_pr1nt4bl3}`
+
+![CryptoHack ASCII Encoding Challenge Completed](../02-Cryptography/screenshots/Screenshot%202026-11-05%20091537.png)
+
+#### Challenge CQ-03 (`You either know, XOR you don't`) Decryption Script & Output (`decod.py`)
+```python
+def xor_decrypt(hex_ciphertext, key_str):
+    ciphertext = bytes.fromhex(hex_ciphertext)
+    key = key_str.encode()
+    decrypted = bytes([c ^ key[i % len(key)] for i, c in enumerate(ciphertext)])
+    return decrypted.decode(errors='ignore')
+
+hex_str = "0e0b213f26041e480b26217f27342e175d0e070a3c5b103e2526217f27342e175d0e077e263451150104"
+secret_key = "myXORkey"
+
+flag = xor_decrypt(hex_str, secret_key)
+print(f"Flag: {flag}")
+```
+
+```text
+(.venv) cyberflex@DESKTOP-CYBERFLEX:~/Desk$ python3 decod.py
+Flag: crypto{1f_y0u_Kn0w_En0uGH_y0u_Kn0w_1t_4ll}
+```
+
+![Terminal Output of decod.py Recovering the XOR Flag](../02-Cryptography/screenshots/Screenshot%202026-11-05%20091055.png)
+
+---
+
+### 7.3 Challenge CQ-04 Evidence (CryptoHack — Visual RGB XOR `Lemur XOR`)
+
+#### Terminal Execution of `solve.py`
+```text
+(.venv) cyberflex@DESKTOP-CYBERFLEX:/mnt/c/Users/Cyberflex/Downloads$ python3 solve.py
+Image 1: (582, 327)
+Image 2: (582, 327)
+[+] Visual XOR successful!
+[+] Saved recovered.png
+```
+
+![Encrypted Input Images Compared with Recovered Visual XOR Output](../02-Cryptography/screenshots/Screenshot%202026-11-05%20094757.png)
+
+![Recovered PNG Image Revealing the Flag crypto{X0Rly_n0t!}](../02-Cryptography/screenshots/recovered.png)
+
+---
+
+### 7.4 Challenge CQ-05 Evidence (pwn.college — Linux Commands & Permissions)
+
+#### Verified Terminal Output (`Intro to Commands`)
+```text
+hacker@hello~intro-to-commands:~$ whoami
+hacker
+hacker@hello~intro-to-commands:~$ ls
+Desktop
+hacker@hello~intro-to-commands:~$ cd Desktop
+hacker@hello~intro-to-commands:~/Desktop$ ls
+hacker@hello~intro-to-commands:~/Desktop$ hello
+Success! Here is your flag:
+pwn.college{EnJ5mlqSTCVctJQNPa9imumcTKl.QX3YjM1wCM3IzN0IzW}
+```
+
+![pwn.college Terminal Session Capturing the Intro to Commands Flag](../03-Linux-Security/screenshots/Screenshot%202026-11-05%20095759.png)
+
+#### Pending Evidence (`Comprehending Permissions` Task)
+> **[TODO: After completing the assigned tasks in `03-Linux-Security/permissions.md`, insert the captured `pwn.college{...}` permissions flag and terminal screenshot here.]**
+
+---
+
+### 7.5 Master Summary of Captured Flags
+
+| Challenge ID | Platform | Challenge Name | Captured Flag |
+| :--- | :--- | :--- | :--- |
+| **CQ-01** | SkillBit | *Seriously Questionable Coding* | `MetaCTF{hello_you_sweet_sql_injection_flag}` |
+| **CQ-02** | CryptoHack | *ASCII* | `crypto{ASCII_pr1nt4bl3}` |
+| **CQ-03** | CryptoHack | *You either know, XOR you don't* | `crypto{1f_y0u_Kn0w_En0uGH_y0u_Kn0w_1t_4ll}` |
+| **CQ-04** | CryptoHack | *Lemur XOR* | `crypto{X0Rly_n0t!}` |
+| **CQ-05a** | pwn.college | *Intro to Commands (`hello`)* | `pwn.college{EnJ5mlqSTCVctJQNPa9imumcTKl.QX3YjM1wCM3IzN0IzW}` |
+| **CQ-05b** | pwn.college | *Comprehending Permissions* | `> [TODO: Insert flag upon completing permissions.md task]` |
+
+---
+
+## 8. Impact
+
+1. **Complete Authentication Bypass & Credential Compromise (Web Security):**
+   - The SQL Injection flaw in ICMP's Smart Home Protect System allows any unauthenticated remote attacker to bypass the login screen and extract the entire `users` table.
+   - Because passwords (`great_super_password`, `sups_sups_secure`, `long_password_supa_weak`) are stored in plaintext rather than cryptographic hashes, attackers immediately obtain valid credentials for all user accounts (`jon@icmpindustries.com`, `maria@icmpindustries.com`, `joe@icmpindustries.com`), enabling lateral movement and account takeover across services where users reuse passwords.
+2. **Total Loss of Cryptographic Confidentiality (Cryptography):**
+   - Mistaking encoding (`ASCII`/`Hex`) for encryption leaves sensitive data completely exposed in transit and at rest.
+   - Using short repeating XOR keys (`myXORkey`) or reusing a key stream across multiple files (`lemur.png` and `flag.png`) allows attackers to recover the secret key or cancel it out mathematically ($C_1 \oplus C_2 = P_1 \oplus P_2$) without brute-forcing the key space.
+3. **Local Privilege Escalation & Unauthorized File Disclosure (Linux Security):**
+   - Weak file ownership or overly permissive `chmod` settings allow unauthorized local users to read or modify sensitive system files (`/flag`, `/etc/shadow`, private keys).
+   - Misconfigured `SUID` binaries owned by `root` allow standard users (`hacker`) to execute arbitrary file reads or commands with administrative `root` privileges, leading to full host compromise.
+
+---
+
+## 9. Recommendations
+
+The following prioritized remediation controls should be implemented to address the vulnerabilities identified across the assessment:
+
+| Priority | Domain | Remediation Control | Technical Implementation Guidance |
+| :---: | :--- | :--- | :--- |
+| **1 (Immediate)** | Web Security | **Enforce Parameterized Queries (Prepared Statements)** | Replace all string-concatenated SQL queries in PHP with `PDO` prepared statements (`$pdo->prepare('SELECT id, email, pwd FROM users WHERE email = :email')`) so user input is bound strictly as literal data. |
+| **2 (Immediate)** | Web Security | **Hash Passwords Using Salted Cryptographic Hashing** | Never store plaintext passwords in the database. Hash all user passwords using `Argon2id` or `bcrypt` via PHP's `password_hash()` and validate logins using `password_verify()`. |
+| **3 (High)** | Web Security | **Disable Verbose SQL Debug Output & Server Banners** | Remove raw SQL query reflection (`Your query was: ...`) from user-facing pages and set `expose_php = Off` in `php.ini` and `ServerTokens Prod` in Apache to prevent technology fingerprinting. |
+| **4 (High)** | Cryptography | **Use Authenticated Encryption (`AEAD`) with Unique Nonces** | Replace custom repeating-key XOR ciphers with standardized algorithms such as `AES-256-GCM` or `ChaCha20-Poly1305`. Ensure every encryption operation uses a cryptographically random, non-repeating **nonce / Initialization Vector (`IV`)** so key streams are never reused. |
+| **5 (Medium)** | Linux Security | **Enforce Principle of Least Privilege & Audit `SUID` Binaries** | Restrict sensitive files to owner-only access (`chmod 600` or `0400`) owned by `root:root` (`chown root:root`). Regularly audit the filesystem with `find / -perm -4000 -type f 2>/dev/null` and remove unnecessary `SUID` bits (`chmod u-s`). |
+
+---
+
+## 10. Conclusion
+
+The **CodeVerse CyberQuest** assessment demonstrated how foundational vulnerabilities across web applications, cryptographic implementations, and Linux operating systems can be systematically identified, exploited in controlled lab environments, and remediated:
+
+- In **Web Security**, a single unsanitized input field combined with plaintext password storage compromised the entire user database of the target application.
+- In **Cryptography**, both known-plaintext analysis (`You either know, XOR you don't`) and Two-Time Pad pixel cryptanalysis (`Lemur XOR`) proved that cryptographic confidentiality depends not only on keeping keys secret, but on never repeating short keys or reusing keystreams.
+- In **Linux Security**, command-line enumeration and permission controls (`chmod`, `SUID`) highlighted the critical boundary between user authentication and system authorization.
+
+Implementing parameterized database queries, strong password hashing, modern authenticated encryption (`AEAD`), and least-privilege Linux file permissions effectively mitigates these risks and establishes a resilient defense-in-depth posture.
+
+---
+
+## 11. References
+
+1. **OWASP Foundation** — *OWASP Top 10:2021 (A03:2021 Injection & A07:2021 Identification and Authentication Failures)*: [OWASP Top 10](https://owasp.org/Top10/)
+2. **OWASP Cheat Sheet Series** — *SQL Injection Prevention Cheat Sheet*: [OWASP SQL Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
+3. **NIST Special Publication 800-63B** — *Digital Identity Guidelines: Authentication and Lifecycle Management*: [NIST SP 800-63B](https://pages.nist.gov/800-63-3/sp800-63b.html)
+4. **CryptoHack Platform** — *Introduction to CryptoHack & Symmetric Cryptography Challenges*: [CryptoHack Training Platform](https://cryptohack.org/)
+5. **pwn.college Platform** — *Linux Luminarium Dojo (`hello` and `permissions` modules)*: [pwn.college Linux Luminarium](https://pwn.college/linux-luminarium/)
+6. **Linux Manual Pages** — `chmod(1)`, `chown(1)`, `id(1)`, and `whoami(1)` system documentation (`man 1 chmod`).
